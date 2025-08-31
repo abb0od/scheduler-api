@@ -7,7 +7,7 @@ namespace SchedulerAPI.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize]
+[Authorize(AuthenticationSchemes = "JWE")]
 public class AppointmentsController : ControllerBase
 {
     private readonly AppointmentService _appointmentService;
@@ -24,36 +24,70 @@ public class AppointmentsController : ControllerBase
         _supplierService = supplierService;
     }
 
-    private async Task<string?> GetUserIdFromToken()
-    {
-        var authHeader = Request.Headers["Authorization"].ToString();
-        if (string.IsNullOrEmpty(authHeader) || !authHeader.StartsWith("Bearer "))
-            return null;
+// Returns true if the token is valid
+private bool IsTokenValid()
+{
+    if (!Request.Headers.ContainsKey("Authorization"))
+        return false;
 
-        var token = authHeader.Substring("Bearer ".Length);
-        return _authService.ValidateToken(token);
+    var authHeader = Request.Headers["Authorization"].ToString();
+    if (!authHeader.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
+        return false;
+
+    var token = authHeader.Substring("Bearer ".Length).Trim();
+
+    try
+    {
+        var userId = _authService.ValidateToken(token);
+        return !string.IsNullOrEmpty(userId);
     }
+    catch
+    {
+        return false;
+    }
+}
+
+// Returns the user ID if token is valid, otherwise null
+private string? GetUserIdFromToken()
+{
+    if (!Request.Headers.ContainsKey("Authorization"))
+        return null;
+
+    var authHeader = Request.Headers["Authorization"].ToString();
+    if (!authHeader.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
+        return null;
+
+    var token = authHeader.Substring("Bearer ".Length).Trim();
+
+    try
+    {
+        return _authService.ValidateToken(token); // Returns userId or null if invalid
+    }
+    catch
+    {
+        return null;
+    }
+}
+
 
     [HttpGet]
     public async Task<ActionResult<List<Appointment>>> GetMyAppointments()
     {
-        var userId = await GetUserIdFromToken();
-        if (userId == null)
+         if (!IsTokenValid())
             return Unauthorized();
 
-        var appointments = await _appointmentService.GetAllForUserAsync(userId);
+        var appointments = await _appointmentService.GetAllForUserAsync(GetUserIdFromToken());
         return appointments;
     }
 
     [HttpGet("supplier/{supplierId}")]
     public async Task<ActionResult<List<Appointment>>> GetSupplierAppointments(string supplierId)
     {
-        var userId = await GetUserIdFromToken();
-        if (userId == null)
+         if (!IsTokenValid())
             return Unauthorized();
 
         // Verify that the user owns this supplier
-        var supplier = await _supplierService.GetByIdAsync(supplierId, userId);
+        var supplier = await _supplierService.GetByIdAsync(supplierId, GetUserIdFromToken());
         if (supplier == null)
             return NotFound("Supplier not found or you don't have access to it");
 
@@ -64,8 +98,7 @@ public class AppointmentsController : ControllerBase
     [HttpGet("{id}")]
     public async Task<ActionResult<Appointment>> GetById(string id)
     {
-        var userId = await GetUserIdFromToken();
-        if (userId == null)
+         if (!IsTokenValid())
             return Unauthorized();
 
         var appointment = await _appointmentService.GetByIdAsync(id);
@@ -73,10 +106,10 @@ public class AppointmentsController : ControllerBase
             return NotFound();
 
         // Check if user has access to this appointment
-        if (appointment.UserId != userId)
+        if (appointment.UserId != GetUserIdFromToken())
         {
             // Check if user is the supplier for this appointment
-            var supplier = await _supplierService.GetByIdAsync(appointment.SupplierId, userId);
+            var supplier = await _supplierService.GetByIdAsync(appointment.SupplierId, GetUserIdFromToken());
             if (supplier == null)
                 return Forbid();
         }
@@ -87,13 +120,12 @@ public class AppointmentsController : ControllerBase
     [HttpPost]
     public async Task<ActionResult<Appointment>> Create(Appointment appointment)
     {
-        var userId = await GetUserIdFromToken();
-        if (userId == null)
+         if (!IsTokenValid())
             return Unauthorized();
 
         try
         {
-            appointment.UserId = userId;
+            appointment.UserId = GetUserIdFromToken();
             appointment.Status = "pending"; // Always start as pending
             await _appointmentService.CreateAsync(appointment);
             return CreatedAtAction(nameof(GetById), new { id = appointment.Id }, appointment);
@@ -107,8 +139,7 @@ public class AppointmentsController : ControllerBase
     [HttpPut("{id}/status")]
     public async Task<IActionResult> UpdateStatus(string id, [FromBody] string status)
     {
-        var userId = await GetUserIdFromToken();
-        if (userId == null)
+         if (!IsTokenValid())
             return Unauthorized();
 
         var appointment = await _appointmentService.GetByIdAsync(id);
@@ -116,7 +147,7 @@ public class AppointmentsController : ControllerBase
             return NotFound();
 
         // Verify that the user is the supplier for this appointment
-        var supplier = await _supplierService.GetByIdAsync(appointment.SupplierId, userId);
+        var supplier = await _supplierService.GetByIdAsync(appointment.SupplierId, GetUserIdFromToken());
         if (supplier == null)
             return Forbid();
 
@@ -130,8 +161,7 @@ public class AppointmentsController : ControllerBase
     [HttpDelete("{id}")]
     public async Task<IActionResult> Delete(string id)
     {
-        var userId = await GetUserIdFromToken();
-        if (userId == null)
+         if (!IsTokenValid())
             return Unauthorized();
 
         var appointment = await _appointmentService.GetByIdAsync(id);
@@ -139,10 +169,10 @@ public class AppointmentsController : ControllerBase
             return NotFound();
 
         // Check if user has access to delete this appointment
-        if (appointment.UserId != userId)
+        if (appointment.UserId != GetUserIdFromToken())
         {
             // Check if user is the supplier for this appointment
-            var supplier = await _supplierService.GetByIdAsync(appointment.SupplierId, userId);
+            var supplier = await _supplierService.GetByIdAsync(appointment.SupplierId, GetUserIdFromToken());
             if (supplier == null)
                 return Forbid();
         }

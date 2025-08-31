@@ -9,8 +9,9 @@ public class UserService
     private readonly IMongoCollection<User> _users;
 
     public UserService(IOptions<MongoDbSettings> settings)
-    {
-        var client = new MongoClient(settings.Value.ConnectionString);
+    {   if (string.IsNullOrEmpty(settings.Value.MONGODB_URI))
+        throw new ArgumentException("MongoDB connection string is not set!");
+        var client = new MongoClient(settings.Value.MONGODB_URI);
         var db = client.GetDatabase(settings.Value.DatabaseName);
         _users = db.GetCollection<User>("users");
 

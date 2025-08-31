@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using SchedulerAPI.Enums;
 
 namespace SchedulerAPI.Models;
 

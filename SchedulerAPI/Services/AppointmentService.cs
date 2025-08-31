@@ -11,7 +11,7 @@ public class AppointmentService
 
     public AppointmentService(IOptions<MongoDbSettings> settings, SupplierService supplierService)
     {
-        var client = new MongoClient(settings.Value.ConnectionString);
+        var client = new MongoClient(settings.Value.MONGODB_URI);
         var db = client.GetDatabase(settings.Value.DatabaseName);
         _appointments = db.GetCollection<Appointment>("appointments");
         _supplierService = supplierService;

@@ -10,7 +10,7 @@ public class SupplierService
 
     public SupplierService(IOptions<MongoDbSettings> settings)
     {
-        var client = new MongoClient(settings.Value.ConnectionString);
+        var client = new MongoClient(settings.Value.MONGODB_URI);
         var db = client.GetDatabase(settings.Value.DatabaseName);
         _suppliers = db.GetCollection<Supplier>("suppliers");
     }

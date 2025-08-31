@@ -1,13 +1,9 @@
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Attributes;
+using SchedulerAPI.Enums;
 
 namespace SchedulerAPI.Models;
 
-public enum UserType
-{
-    Normal,
-    Business
-}
 
 public class User
 {
